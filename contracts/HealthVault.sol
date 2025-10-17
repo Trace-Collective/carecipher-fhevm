@@ -32,12 +32,10 @@ contract HealthVault is SepoliaFHEVMConfig, GatewayCaller {
     error Unauthorized();
     error UnknownRequest(uint256 requestId);
 
-    function _storeRecord(
-        address owner,
-        string calldata cid,
-        euint16 encAllergy,
-        euint16 encRisk
-    ) private returns (uint256 id) {
+    function _storeRecord(address owner, string calldata cid, euint16 encAllergy, euint16 encRisk)
+        private
+        returns (uint256 id)
+    {
         id = nextId;
 
         records[id] = Record({
@@ -65,10 +63,12 @@ contract HealthVault is SepoliaFHEVMConfig, GatewayCaller {
     function createRecordFromExternal(
         string calldata cid,
         externalEuint16 encAllergy,
-        externalEuint16 encRisk
+        bytes calldata allergyProof,
+        externalEuint16 encRisk,
+        bytes calldata riskProof
     ) external {
-        euint16 allergy = euint16.wrap(externalEuint16.unwrap(encAllergy));
-        euint16 risk = euint16.wrap(externalEuint16.unwrap(encRisk));
+        euint16 allergy = _ingestExternal(encAllergy, allergyProof);
+        euint16 risk = _ingestExternal(encRisk, riskProof);
 
         _storeRecord(msg.sender, cid, allergy, risk);
     }
@@ -79,7 +79,18 @@ contract HealthVault is SepoliaFHEVMConfig, GatewayCaller {
     }
 
     function addRiskDelta(uint256 id, euint16 delta) external {
-        Record storage record = records[id];
+        Record storage record = _authorize(id);
+        _applyRiskDelta(record, delta);
+    }
+
+    function addRiskDeltaFromExternal(uint256 id, externalEuint16 delta, bytes calldata proof) external {
+        Record storage record = _authorize(id);
+        euint16 internalDelta = _ingestExternal(delta, proof);
+        _applyRiskDelta(record, internalDelta);
+    }
+
+    function _authorize(uint256 id) private view returns (Record storage record) {
+        record = records[id];
         if (record.owner == address(0)) {
             revert RecordNotFound();
         }
@@ -87,8 +98,12 @@ contract HealthVault is SepoliaFHEVMConfig, GatewayCaller {
         if (msg.sender != owner && !granted[owner][msg.sender]) {
             revert Unauthorized();
         }
+    }
 
-        record.riskScore = FHE.add(record.riskScore, delta);
+    function _applyRiskDelta(Record storage record, euint16 delta) private {
+        euint16 permittedRisk = FHE.allowThis(record.riskScore);
+        euint16 permittedDelta = FHE.allowThis(delta);
+        record.riskScore = FHE.allowThis(FHE.add(permittedRisk, permittedDelta));
     }
 
     function requestRiskDecrypt(uint256 id) external returns (uint256 requestId) {
@@ -126,5 +141,10 @@ contract HealthVault is SepoliaFHEVMConfig, GatewayCaller {
 
         emit RiskDecrypted(ctx.recordId, ctx.requester, plainRisk);
         return plainRisk > 0;
+    }
+
+    function _ingestExternal(externalEuint16 inputHandle, bytes calldata proof) private returns (euint16) {
+        euint16 value = FHE.fromExternal(inputHandle, proof);
+        return FHE.allowThis(value);
     }
 }

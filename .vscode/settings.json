@@ -1,0 +1,11 @@
+{
+  // Make the Solidity extension resolve imports from pnpm's node_modules folder
+  "solidity.packageDefaultDependenciesContractsDirectory": "",
+  "solidity.packageDefaultDependenciesDirectories": [
+    "node_modules"
+  ],
+  "solidity.remappings": [
+    "@fhevm/solidity/=node_modules/@fhevm/solidity/",
+    "fhevm/=node_modules/fhevm/"
+  ]
+}
