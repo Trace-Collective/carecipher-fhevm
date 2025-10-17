@@ -1,9 +1,12 @@
 import "@fhevm/hardhat-plugin";
 import "@nomicfoundation/hardhat-chai-matchers";
 import "@nomicfoundation/hardhat-ethers";
+import dotenv from "dotenv";
 import fs from "fs";
 import path from "path";
 import { HardhatUserConfig } from "hardhat/config";
+
+dotenv.config();
 
 const cacheConfigDir = path.join(__dirname, "fhevmTemp", "@fhevm", "solidity", "config");
 const cacheConfigPath = path.join(cacheConfigDir, "FHEVMConfig.sol");
@@ -39,6 +42,13 @@ const config: HardhatUserConfig = {
     version: "0.8.28",
     settings: {
       evmVersion: "cancun", // FHEVM requires Cancun fork
+    },
+  },
+  networks: {
+    sepolia: {
+      url: process.env.SEPOLIA_RPC_URL || "",
+      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+      chainId: 11155111,
     },
   },
 };
